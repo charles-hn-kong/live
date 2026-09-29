@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+coverage/
+
+# Environment and local tooling
+.env
+.env.*
+!.env.example
+.DS_Store
+*.log
+**/.yarn/install-state.gz
+
+# Media files are local assets and should not be committed accidentally.
+*.mp4
+*.mkv
+*.flv
