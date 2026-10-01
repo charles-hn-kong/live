@@ -1,14 +1,23 @@
-# CharlesLive · Day 01
+# CharlesLive
 
-Day 01 完成了一个直播网站的最小可运行版本：可以获取直播间列表、进入指定直播间，并按视频源类型播放 HLS 或 MP4 内容。
+为求职准备，重新梳理直播播放、伪直播同步和实时互动的实现。前端 React + TypeScript + Vite，后端 Express + TypeScript + ws。
 
-## 当前功能
+## 开发进度
 
-- 服务端提供健康检查、直播间列表和直播间详情接口。
-- 列表接口不会返回播放地址，避免在列表页暴露不需要的数据。
-- 前端包含直播间列表页和直播间播放页。
-- 使用 `hls.js` 播放 HLS 直播流，处理直播延迟过大及页面从后台回到前台时的追赶逻辑。
-- 支持 MP4 伪直播数据模型，为后续根据 `startedAt` 计算播放进度做准备。
+### Day 01
+
+- 完成直播间列表、详情页和对应接口。
+- 接通 OBS → RTMP → MediaMTX → HLS 播放。
+- 加入直播延迟校准，切回前台后追赶直播进度。
+
+### Day 02
+
+- 增加播放器加载、缓冲和错误提示。
+- 接入游戏、旅行、音乐三个 MP4 房间。
+- 按 `startedAt` 同步伪直播进度，支持循环播放和返回前台校准。
+- 接入 WebSocket，支持加入、切换房间和断开清理。
+- 完成服务端房间连接数统计与人数广播，双标签验证人数变化。
+- 集中管理接口地址，切换房间时取消旧请求。
 
 ## 项目结构
 
@@ -18,18 +27,18 @@ CharlesLive/
 │   └── src/
 │       ├── components/player/  # HLS / MP4 播放器
 │       ├── pages/              # 列表页、直播间页
-│       └── services/           # 后端接口请求
+│       └── services/           # HTTP 请求、WebSocket 连接与地址配置
 ├── server/                 # Express 后端
 │   └── src/
 │       ├── data/               # 临时直播间数据
 │       ├── routes/             # HTTP 路由
-│       └── services/           # 直播间查询逻辑
+│       └── services/           # 房间查询、连接管理与人数广播
 └── README-OBS-MediaMTX-local.md  # OBS + MediaMTX 本地推流说明
 ```
 
 ## 本地启动
 
-需要 Node.js 20 或更高版本。
+Node.js 20.19+（20.x）或 22.12+。
 
 先启动后端：
 
@@ -49,6 +58,10 @@ npm run dev
 
 前端默认打开 Vite 显示的地址；后端默认监听 `http://localhost:3000`。
 
+MP4 素材放在 `client/public/videos/`，文件名为 `game.mp4`、`travel.mp4`、`music.mp4`。
+
+真实直播的推流配置见 [OBS + MediaMTX 本地部署](README-OBS-MediaMTX-local.md)。
+
 ## 接口
 
 | 接口 | 用途 |
@@ -57,9 +70,10 @@ npm run dev
 | `GET /api/rooms` | 获取直播间摘要列表 |
 | `GET /api/rooms?id=1` | 获取某个直播间的完整信息（含播放地址） |
 
+WebSocket：`ws://localhost:3000/ws`。当前支持 `join` 消息，服务端返回加入结果并广播 `viewerCount`。
+
 ## 下一步
 
-- 让 MP4 伪直播按 `startedAt` 自动跳到当前进度。
-- 增加封面、列表样式和直播状态展示。
-- 用数据库替代内存中的演示数据。
-- 接入鉴权、开播/关播状态与真实在线人数。
+- 页面显示实时在线人数。
+- 评论 / 弹幕、点赞聚合、礼物。
+- 断线重连与异常场景测试。

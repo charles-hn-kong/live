@@ -1,9 +1,8 @@
 import type { LiveRoom, LiveRoomSummary } from '../types/liveRoom';
+import { API_BASE_URL } from './config';
 
-const API_BASE_URL = 'http://localhost:3000/api';
-
-const request = async <T>(url: string):Promise<T> => {
-    const response = await fetch(url);
+const request = async <T>(url: string, signal?: AbortSignal): Promise<T> => {
+    const response = await fetch(url, { signal });
     if (!response.ok) {
         throw new Error(
             `Request failed: ${response.status} ${response.statusText}`
@@ -18,8 +17,8 @@ export const getLiveRooms = (): Promise<LiveRoomSummary[]> => {
 }
 
 
-export const getLiveRoom = (id: string): Promise<LiveRoom> => {
-    const query = new URLSearchParams({id});
+export const getLiveRoom = (id: string, signal?: AbortSignal): Promise<LiveRoom> => {
+    const query = new URLSearchParams({ id });
 
-    return request<LiveRoom>(`${API_BASE_URL}/rooms?${query.toString()}`);
+    return request<LiveRoom>(`${API_BASE_URL}/rooms?${query.toString()}`, signal);
 }

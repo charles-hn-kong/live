@@ -1,28 +1,25 @@
-import type { LiveSourceType } from '../../types/liveRoom'
+import type { LiveSourceType, LiveMode } from '../../types/liveRoom'
 import HlsPlayer from './HlsPlayer';
+import Mp4Player from './Mp4Player';
 
 type IProps = {
     type: LiveSourceType;
     url: string;
+    mode: LiveMode;
+    startedAt?: string;
 }
 
 const LivePlayer = (props: IProps) => {
-    const {type, url} = props;
+    const {type, url, mode, startedAt} = props;
     if (type === 'hls') {
         return <HlsPlayer url={url} />
     }
     
     return (
-        <video 
-            src={url}
-            controls
-            autoPlay
-            muted
-            playsInline
-            style={{
-                width: '100%',
-                background: '#000000'
-            }}
+        <Mp4Player
+            url={url}
+            mode={mode}
+            startedAt={startedAt}
         />
     )
 }

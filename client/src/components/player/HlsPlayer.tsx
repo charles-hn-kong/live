@@ -5,12 +5,15 @@ type IProps = {
     url: string;
 }
 
+type PlayerStatus = 'loading' | 'playing' | 'buffering' | 'paused' | 'error';
+
 const HlsPlayer = (props: IProps) => {
     const MAX_LIVE_DELAY = 5;
     const {url} = props;
     const videoRef = useRef<HTMLVideoElement>(null);
     const hlsRef = useRef<Hls | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [status, setStatus] = useState<PlayerStatus>('loading');
 
     useEffect(() => {
         const video = videoRef.current;
@@ -19,11 +22,13 @@ const HlsPlayer = (props: IProps) => {
         }
 
         if (!Hls.isSupported()) {
+            setStatus('error');
             setError('current brower does not support Hls');
             return;
         }
 
         setError(null);
+        setStatus('loading');
 
         const hls = new Hls({
             liveSyncDuration: 3,
@@ -35,7 +40,17 @@ const HlsPlayer = (props: IProps) => {
         hls.on(Hls.Events.ERROR, (_event, data) => {
             if (data.fatal) {
                 hls.destroy();
+                setStatus('error');
                 setError('live stream playback failed');
+                // VS Code 内置浏览器曾出现 mediaSourceRequiresReset 致命错误，Chrome 播放正常；记录详情用于排查媒体兼容性及后续恢复处理。
+                // Observed a fatal mediaSourceRequiresReset error in VS Code's integrated browser while playback worked in Chrome; log details to investigate media compatibility and recovery.
+                console.error('Hls Play error', {
+                    type: data.type,
+                    details: data.details,
+                    fatal: data.fatal,
+                    reason: data.reason,
+                    error: data.error
+                })
             }
         });
         hls.on(Hls.Events.LEVEL_UPDATED, handleLevelUpdated);
@@ -88,7 +103,6 @@ const HlsPlayer = (props: IProps) => {
         <div>
             <video 
                 ref={videoRef} 
-                controls
                 autoPlay
                 muted
                 playsInline
@@ -96,8 +110,27 @@ const HlsPlayer = (props: IProps) => {
                     width: '100%',
                     background: '#000000'
                 }}
+                onPlaying={() => {
+                    setStatus('playing');
+                }}
+                onWaiting={() => {
+                    if (!error) {
+                        setStatus('buffering');
+                    }
+                }}
+                onPause={() => {
+                    if (!error) {
+                        setStatus('paused');
+                    }
+                }}
             />
-            {error && <p>{error}</p>}
+            <div>
+                {status === 'loading' && <p>直播加载中。。。</p>}
+                {status === 'buffering' && <p>正在缓冲。。。</p>}
+                {status === 'paused' && <p>播放已暂停</p>}
+                {status === 'error' && error && <p>{error}</p>}
+                
+            </div>
         </div>
     )
 }
