@@ -18,3 +18,10 @@ export type LiveRoom = {
 }
 
 export type LiveRoomSummary = Omit<LiveRoom, 'playUrl' | 'startedAt'>;
+
+export type RoomComment = {
+    id: string;
+    nickname: string;
+    content: string;
+    createdAt: number;
+}

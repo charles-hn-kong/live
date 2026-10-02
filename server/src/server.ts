@@ -1,8 +1,8 @@
 import app from './app';
 import { createServer } from 'node:http';
-import { WebSocketServer, type WebSocket } from 'ws';
+import { WebSocketServer } from 'ws';
 import { getRoomById } from './services/roomService';
-import { joinRoom, leaveRoom } from './services/roomSocketService';
+import { joinRoom, leaveRoom, sendRoomComment } from './services/roomSocketService';
 
 const port = Number(process.env.PORT) || 3000;
 
@@ -34,8 +34,31 @@ wss.on('connection', (socket) => {
         }
         if (typeof message !== 'object' || 
             message === null ||
-            !('type' in message) ||
-            message.type !== 'join' ||
+            !('type' in message)) {
+            socket.send(JSON.stringify({
+                type: 'error',
+                message: 'Invalid message'
+            }));
+            return;
+        }
+
+        if (message.type === 'comment') {
+            if (!('nickname' in message) ||
+                typeof message.nickname !== 'string' ||
+                !('content' in message) ||
+                typeof message.content !== 'string') {
+                socket.send(JSON.stringify({
+                    type: 'error',
+                    message: 'Invalid comment message'
+                }));
+                return;
+            }
+
+            sendRoomComment(socket, message.nickname, message.content);
+            return;
+        }
+
+        if (message.type !== 'join' ||
             !('roomId' in message) ||
             typeof message.roomId !== 'string') {
             socket.send(JSON.stringify({
@@ -44,6 +67,7 @@ wss.on('connection', (socket) => {
             }));
             return;
         }
+
         const room = getRoomById(message.roomId);
         if (!room) {
             socket.send(JSON.stringify({
