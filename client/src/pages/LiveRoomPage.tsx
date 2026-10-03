@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { LiveRoom, RoomComment } from "../types/liveRoom";
+import DanmakuLayer from "../components/danmaku/DanmakuLayer";
 
 import LivePlayer from "../components/player/LivePlayer";
 import { getLiveRoom } from "../services/liveApi";
@@ -127,12 +128,15 @@ const LiveRoomPage = () => {
             <h1>{room.title}</h1>
             <p>UP：{room.anchorName}</p>
             <p>Line：{viewerCount ?? '-'}</p>
-            <LivePlayer
-                type={room.sourceType}
-                url={room.playUrl}
-                mode={room.mode}
-                startedAt={room.startedAt}
-            />
+            <div style={{ position: 'relative', overflow: 'hidden' }}>
+                <LivePlayer
+                    type={room.sourceType}
+                    url={room.playUrl}
+                    mode={room.mode}
+                    startedAt={room.startedAt}
+                />
+                <DanmakuLayer key={room.id} comments={comments} />
+            </div>
             <section>
                 <h2>Commentz</h2>
 

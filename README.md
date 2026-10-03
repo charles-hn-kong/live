@@ -26,6 +26,13 @@
 - 前后端校验评论，服务端按房间广播，页面实时更新列表。
 - 页面保留最近 100 条评论，换房时清空评论、正文和发送提示。
 
+### Day 04
+
+- 复用评论消息，在播放器上显示滚动弹幕。
+- 使用 `requestAnimationFrame` 驱动三条固定轨道，从右向左播放。
+- 复用弹幕节点，待播队列最多保留 20 条。
+- 换房时重建弹幕层，退出时取消动画任务。
+
 ## 项目结构
 
 ```text
@@ -33,6 +40,7 @@ CharlesLive/
 ├── client/                 # React + Vite 前端
 │   └── src/
 │       ├── components/player/  # HLS / MP4 播放器
+│       ├── components/danmaku/ # 弹幕层与样式
 │       ├── pages/              # 列表页、直播间页
 │       └── services/           # HTTP 请求、WebSocket 连接与地址配置
 ├── server/                 # Express 后端
@@ -81,6 +89,6 @@ WebSocket：`ws://localhost:3000/ws`。支持 `join`、`comment` 消息，服务
 
 ## 下一步
 
-- 弹幕展示、点赞聚合、礼物。
+- 点赞聚合、礼物。
 - 使用服务器时间校准伪直播进度。
 - 断线重连、播放恢复与异常场景测试。
