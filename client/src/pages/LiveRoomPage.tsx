@@ -9,6 +9,8 @@ import { connectToRoom, disconnectFromRoom, sendRoomComment, sendRoomLike } from
 import GiftPanel from "../components/gift/GiftPanel";
 import "./LiveRoomPage.css";
 
+const RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 10000]
+
 const LiveRoomPage = () => {
     const [searchParams] = useSearchParams();
     const id = searchParams.get('id');
@@ -27,6 +29,9 @@ const LiveRoomPage = () => {
     const [likeCount, setLikeCount] = useState<number | null>(null);
     const [likeError, setLikeError] = useState<string | null>(null);
     const [giftQueue, setGiftQueue] = useState<RoomGift[]>([]);
+    const reconnectTimerRef = useRef<number | null>(null);
+    const [reconnectAttempt, setReconnectAttempt] = useState(0);
+    const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'recconnecting'>('connecting');
 
     const handleGift = useCallback((gift: RoomGift) => {
         setGiftQueue((previous: RoomGift[]) => {
@@ -108,6 +113,10 @@ const LiveRoomPage = () => {
     }, [])
 
     const closeRoomConnection = useCallback(() => {
+        if (reconnectTimerRef.current !== null) {
+            window.clearTimeout(reconnectTimerRef.current);
+            reconnectTimerRef.current = null;
+        }
         if (likeTimerRef.current !== null) {
             window.clearTimeout(likeTimerRef.current);
             likeTimerRef.current = null;
@@ -153,30 +162,65 @@ const LiveRoomPage = () => {
         }
     }, [id]);
 
+
+    const handleRoomJoined = useCallback((socket: WebSocket) => {
+        if (socketRef.current !== socket) {
+            return;
+        }
+        setReconnectAttempt(0);
+        setConnectionStatus('connected')
+    }, []);
+
+    const handleRoomClose = useCallback((socket: WebSocket) => {
+        if (socketRef.current !== socket) {
+            return;
+        }
+        socketRef.current = null;
+        if (likeTimerRef.current !== null) {
+            window.clearTimeout(likeTimerRef.current)
+            likeTimerRef.current = null;
+        }
+        pendingLikesRef.current = 0;
+        setConnectionStatus('recconnecting');
+        setReconnectAttempt((previos) => previos + 1)
+    }, []);
+
+    const openRoomConnection = useCallback(() => {
+        if (!room || room.id !== id || socketRef.current !== null) {
+            return;
+        }
+        setConnectionStatus('connecting');
+        socketRef.current = connectToRoom(
+            room.id,
+            setViewerCount,
+            handleComment,
+            setLikeCount,
+            handleGift,
+            handleRoomJoined,
+            handleRoomClose
+        );
+    }, [id, room, handleComment, handleGift]);
+
     useEffect(() => {
         if (!room || room.id !== id) {
             return;
         }
 
+        setViewerCount(null);
         setComments([]);
         setCommentContent('');
         setCommentError(null);
         setLikeCount(null);
         setLikeError(null);
         setGiftQueue([]);
+        setReconnectAttempt(0);
 
-        socketRef.current = connectToRoom(
-            room.id,
-            setViewerCount,
-            handleComment,
-            setLikeCount,
-            handleGift
-        );
+        openRoomConnection();
 
         return () => {
             closeRoomConnection();
         }
-    }, [id, room, closeRoomConnection, handleComment]);
+    }, [id, room, openRoomConnection, closeRoomConnection]);
 
     useEffect(() => {
         const liveController = new AbortController();
@@ -185,6 +229,31 @@ const LiveRoomPage = () => {
             liveController.abort();
         }
     }, [loadRoom]);
+
+    useEffect(() => {
+        if (
+            connectionStatus !== 'recconnecting' ||
+            reconnectAttempt === 0 ||
+            !room ||
+            room.id !== id
+        ) {
+            return;
+        }
+
+        const index = Math.min(
+            reconnectAttempt - 1,
+            RECONNECT_DELAYS.length - 1
+        );
+        const delay = RECONNECT_DELAYS[index];
+        const timer = window.setTimeout(openRoomConnection, delay);
+        reconnectTimerRef.current = timer;
+        return () => {
+            window.clearInterval(timer);
+            if (reconnectTimerRef.current === timer) {
+                reconnectTimerRef.current = null;
+            }
+        }
+    }, [connectionStatus, reconnectAttempt, id, room, openRoomConnection]);
 
     if (loading) {
         return <div>Loading...</div>
@@ -203,6 +272,7 @@ const LiveRoomPage = () => {
             <h1>{room.title}</h1>
             <p>UP: {room.anchorName}</p>
             <p>Line: {viewerCount ?? '-'}</p>
+            <p>Chat: {connectionStatus}</p>
             <div className="live-player-stage">
                 <LivePlayer
                     type={room.sourceType}
@@ -231,7 +301,7 @@ const LiveRoomPage = () => {
                 key={room.id}
                 roomId={room.id}
                 nickname={nickname}
-                connected={viewerCount !== null}
+                connected={connectionStatus === 'connected'} 
             />
 
             <section className="room-gift-list">
@@ -248,7 +318,7 @@ const LiveRoomPage = () => {
             </section>
             <section>
                 <p>Likes: {likeCount ?? '-'}</p>
-                <button type='button' onClick={handleLike} disabled={likeCount === null}>
+                <button type='button' onClick={handleLike} disabled={connectionStatus !== 'connected' || likeCount === null}>
                     like
                 </button>
                 {likeError && (
@@ -275,6 +345,7 @@ const LiveRoomPage = () => {
                     <button
                         type="button"
                         onClick={handleSendComment}
+                        disabled={connectionStatus !== 'connected'}
                     >
                         Send
                     </button>

@@ -5,13 +5,16 @@ type ViewerCountHandle = (viewerCount: number | null) => void;
 type CommentHandler = (comment: RoomComment) => void;
 type LikeCountHandler = (likeCount: number | null) => void;
 type GiftHandler = (gift: RoomGift) => void;
+type SocketHandler = (socket: WebSocket) => void;
 
 export const connectToRoom = (
     roomId: string,
     onViewerCount: ViewerCountHandle,
     onComment: CommentHandler,
     onLikeCount: LikeCountHandler,
-    onGift: GiftHandler
+    onGift: GiftHandler,
+    onJoined: SocketHandler,
+    onclose: SocketHandler
 ): WebSocket => {
     const socket = new WebSocket(ROOM_WS_URL);
     socket.onopen = () => {
@@ -44,6 +47,11 @@ export const connectToRoom = (
         }
 
         if (!('roomId' in message) || message.roomId !== roomId) {
+            return;
+        }
+
+        if (message.type === 'joined') {
+            onJoined(socket);
             return;
         }
 
@@ -126,6 +134,7 @@ export const connectToRoom = (
     socket.onclose = () => {
         onViewerCount(null);
         onLikeCount(null);
+        onclose(socket);
     }
 
     return socket;
