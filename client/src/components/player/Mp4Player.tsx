@@ -72,10 +72,7 @@ const Mp4Player = (props: IProps) => {
             muted
             playsInline
             loop={mode === 'pseudo'}
-            style={{
-                width: '100%',
-                background: '#000000'
-            }}
+            className="live-player-video"
         />
     )
 } 

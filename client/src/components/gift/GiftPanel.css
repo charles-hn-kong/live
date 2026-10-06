@@ -1,0 +1,45 @@
+.gift-panel-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.gift-panel-actions button {
+    padding: 8px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 7px;
+    background: #f8fafc;
+    color: #334155;
+    font: inherit;
+    line-height: 1.4;
+    white-space: nowrap;
+    cursor: pointer;
+    opacity: 1;
+}
+
+.gift-panel-actions button:focus-visible {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+}
+
+.gift-panel-actions button:disabled {
+    color: #94a3b8;
+    cursor: not-allowed;
+}
+
+.gift-panel[data-sending="true"] .gift-panel-actions button:disabled {
+    color: #334155;
+    cursor: wait;
+}
+
+.gift-panel-status {
+    min-height: 22px;
+    margin: 8px 0 12px;
+    color: #64748b;
+    font-size: 14px;
+    line-height: 22px;
+}
+
+.gift-panel-error {
+    color: #b91c1c;
+}

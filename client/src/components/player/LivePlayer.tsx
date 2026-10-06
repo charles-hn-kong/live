@@ -1,6 +1,7 @@
 import type { LiveSourceType, LiveMode } from '../../types/liveRoom'
 import HlsPlayer from './HlsPlayer';
 import Mp4Player from './Mp4Player';
+import './LivePlayer.css';
 
 type IProps = {
     type: LiveSourceType;

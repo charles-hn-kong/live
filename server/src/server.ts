@@ -2,7 +2,7 @@ import app from './app';
 import { createServer } from 'node:http';
 import { WebSocketServer } from 'ws';
 import { getRoomById } from './services/roomService';
-import { joinRoom, leaveRoom, sendRoomComment } from './services/roomSocketService';
+import { joinRoom, leaveRoom, sendRoomComment, sendRoomLike } from './services/roomSocketService';
 
 const port = Number(process.env.PORT) || 3000;
 
@@ -55,6 +55,18 @@ wss.on('connection', (socket) => {
             }
 
             sendRoomComment(socket, message.nickname, message.content);
+            return;
+        }
+
+        if (message.type === 'like') {
+            if (!('count' in message) || typeof message.count !== 'number') {
+                socket.send(JSON.stringify({
+                    type: 'error',
+                    message: 'invalid like message'
+                }));
+                return;
+            }
+            sendRoomLike(socket, message.count);
             return;
         }
 

@@ -18,3 +18,18 @@ export type LiveRoom = {
 }
 
 export type LiveRoomSummary = Omit<LiveRoom, 'playUrl' | 'startedAt'>;
+
+export type GiftItem = {
+    id: string;
+    name: string;
+    icon: string;
+}
+
+export type RoomGift = {
+    id: string;
+    nickname: string;
+    giftId: string;
+    giftName: string;
+    giftIcon: string;
+    createdAt: number;
+}

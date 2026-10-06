@@ -1,7 +1,9 @@
 import WebSocket from "ws";
 import { randomUUID } from "node:crypto";
+import type { RoomGift } from "../types/liveRoom";
 
 const roomConnection = new Map<WebSocket, string>();
+const roomLinkeCount = new Map<string, number>();
 
 const broadcastViewerCount = (roomId: string) => {
     let viewerCount = 0;
@@ -31,6 +33,12 @@ export const joinRoom = (socket: WebSocket, roomId: string) => {
         broadcastViewerCount(previousRoomId);
     }
     broadcastViewerCount(roomId);
+
+    socket.send(JSON.stringify({
+        type: 'likeCount',
+        roomId,
+        likeCount: roomLinkeCount.get(roomId) ?? 0
+    }));
 }
 
 export const leaveRoom = (socket: WebSocket) => {
@@ -90,3 +98,65 @@ export const sendRoomComment = (
         }
     }
 };
+
+export const sendRoomLike = (socket: WebSocket, count: number) => {
+    const roomId = roomConnection.get(socket);
+    if (!roomId) {
+        socket.send(JSON.stringify({
+            type: 'error',
+            message: 'join a room befor linking'
+        }));
+        return
+    }
+
+    if (!Number.isSafeInteger(count) ||
+        count < 1 ||
+        count > 100
+    ) {
+        socket.send(JSON.stringify({
+            type: 'error',
+            message: 'linke count must be an integet between 1 and 100'
+        }));
+        return
+    }
+
+    const previousCount = roomLinkeCount.get(roomId) ?? 0;
+    const likeCount = previousCount + count;
+
+    if (!Number.isSafeInteger(likeCount)) {
+        socket.send(JSON.stringify({
+            type: 'error',
+            message: 'room like count exceeds safe number range'
+        }));
+        return;
+    }
+
+    roomLinkeCount.set(roomId, likeCount);
+    
+    const message = JSON.stringify({
+        type: 'likeCount',
+        roomId,
+        likeCount
+    });
+
+    for (const [clientSocket, currentRoomId] of roomConnection) {
+        if (currentRoomId === roomId && clientSocket.readyState === WebSocket.OPEN)  {
+            
+            clientSocket.send(message);
+        }
+    }
+}
+
+export const broadcastRoomGift = (roomId: string, gift: RoomGift) => {
+    const message = JSON.stringify({
+        type: 'gift',
+        roomId,
+        gift
+    });
+
+    for (const [socket, currentRoomId] of roomConnection) {
+        if (currentRoomId === roomId && socket.readyState === WebSocket.OPEN) {
+            socket.send(message);            
+        }
+    }
+}

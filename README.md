@@ -33,6 +33,13 @@
 - 复用弹幕节点，待播队列最多保留 20 条。
 - 换房时重建弹幕层，退出时取消动画任务。
 
+### Day 05
+
+- 点赞按 500ms 合并发送，单批最多 100 次，服务端累计并广播。
+- 接入 Flower、Heart、Rocket 三种礼物，HTTP 提交后通过 WebSocket 按房间广播，页面展示礼物记录。
+- 评论和礼物共用昵称，输入框移到播放器下方，界面提示统一为英文。
+- 播放器适配手机和桌面，限制最大尺寸；调整礼物区布局，发送时保持位置稳定。
+
 ## 项目结构
 
 ```text
@@ -41,13 +48,14 @@ CharlesLive/
 │   └── src/
 │       ├── components/player/  # HLS / MP4 播放器
 │       ├── components/danmaku/ # 弹幕层与样式
+│       ├── components/gift/    # 礼物面板与样式
 │       ├── pages/              # 列表页、直播间页
 │       └── services/           # HTTP 请求、WebSocket 连接与地址配置
 ├── server/                 # Express 后端
 │   └── src/
-│       ├── data/               # 临时直播间数据
+│       ├── data/               # 临时直播间数据、礼物列表
 │       ├── routes/             # HTTP 路由
-│       └── services/           # 房间查询、连接管理、人数与评论广播
+│       └── services/           # 房间查询、连接管理与互动消息广播
 └── README-OBS-MediaMTX-local.md  # OBS + MediaMTX 本地推流说明
 ```
 
@@ -84,11 +92,13 @@ MP4 素材放在 `client/public/videos/`，文件名为 `game.mp4`、`travel.mp4
 | `GET /api/health` | 健康检查 |
 | `GET /api/rooms` | 获取直播间摘要列表 |
 | `GET /api/rooms?id=1` | 获取某个直播间的完整信息（含播放地址） |
+| `GET /api/gifts` | 获取礼物列表 |
+| `POST /api/gifts` | 提交礼物并广播房间消息 |
 
-WebSocket：`ws://localhost:3000/ws`。支持 `join`、`comment` 消息，服务端返回加入结果，并向同房间广播人数和评论。
+WebSocket：`ws://localhost:3000/ws`。支持 `join`、`comment`、`like` 消息，服务端返回加入结果，并向同房间广播人数、评论、点赞数和礼物。
 
 ## 下一步
 
-- 点赞聚合、礼物。
+- 礼物动画与播放队列。
 - 使用服务器时间校准伪直播进度。
 - 断线重连、播放恢复与异常场景测试。

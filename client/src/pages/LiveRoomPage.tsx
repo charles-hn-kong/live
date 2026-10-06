@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import type { LiveRoom, RoomComment } from "../types/liveRoom";
+import type { LiveRoom, RoomComment, RoomGift } from "../types/liveRoom";
 import DanmakuLayer from "../components/danmaku/DanmakuLayer";
 
 import LivePlayer from "../components/player/LivePlayer";
 import { getLiveRoom } from "../services/liveApi";
-import { connectToRoom, disconnectFromRoom, sendRoomComment } from "../services/roomSocket";
+import { connectToRoom, disconnectFromRoom, sendRoomComment, sendRoomLike } from "../services/roomSocket";
+import GiftPanel from "../components/gift/GiftPanel";
+import "./LiveRoomPage.css";
 
 const LiveRoomPage = () => {
     const [searchParams] = useSearchParams();
@@ -20,6 +22,66 @@ const LiveRoomPage = () => {
     const [nickname, setNickname] = useState('');
     const [commentContent, setCommentContent] = useState('');
     const [commentError, setCommentError] = useState<string | null>(null);
+    const pendingLikesRef = useRef<number>(0);
+    const likeTimerRef = useRef<number | null>(null);
+    const [likeCount, setLikeCount] = useState<number | null>(null);
+    const [likeError, setLikeError] = useState<string | null>(null);
+    const [giftQueue, setGiftQueue] = useState<RoomGift[]>([]);
+
+    const handleGift = useCallback((gift: RoomGift) => {
+        setGiftQueue((previous: RoomGift[]) => {
+            if (previous.some((item: RoomGift) => item.id === gift.id)) {
+                return previous;
+            }
+            return [...previous, gift];
+        });
+    }, []);
+
+    const flushLikes = useCallback(() => {
+        if (likeTimerRef.current !== null) {
+            window.clearTimeout(likeTimerRef.current);
+            likeTimerRef.current = null;
+        }
+        const count = pendingLikesRef.current;
+        pendingLikesRef.current = 0;
+        if (count === 0) {
+            return;
+        }
+        const socket = socketRef.current;
+        if (!socket) {
+            setLikeError('the socket have been closed, try enter agin');
+            return;
+        }
+        try {
+            sendRoomLike(socket, count);
+        } catch (error) {
+            if (error instanceof Error) {
+                setLikeError(error.message);
+            } else {
+                setLikeError('send like fail');
+            }
+        }
+    }, []);
+
+    const handleLike = () => {
+        const socket = socketRef.current;
+        if (!socket || socket.readyState !== WebSocket.OPEN || likeCount === null) {
+            setLikeError('room have not ready, try agin');
+            return;
+        }
+        setLikeError(null);
+        pendingLikesRef.current += 1;
+        if (pendingLikesRef.current >= 100) {
+            flushLikes();
+            return;
+        }
+
+        if (likeTimerRef.current !== null) {
+            return;
+        }
+
+        likeTimerRef.current = window.setTimeout(flushLikes, 500);
+    }
 
     const handleSendComment = () => {
         setCommentError(null);
@@ -46,6 +108,11 @@ const LiveRoomPage = () => {
     }, [])
 
     const closeRoomConnection = useCallback(() => {
+        if (likeTimerRef.current !== null) {
+            window.clearTimeout(likeTimerRef.current);
+            likeTimerRef.current = null;
+        }
+        pendingLikesRef.current = 0;
         const socket = socketRef.current;
         if (!socket) {
             return;
@@ -94,9 +161,17 @@ const LiveRoomPage = () => {
         setComments([]);
         setCommentContent('');
         setCommentError(null);
+        setLikeCount(null);
+        setLikeError(null);
+        setGiftQueue([]);
 
-
-        socketRef.current = connectToRoom(room.id, setViewerCount, handleComment);
+        socketRef.current = connectToRoom(
+            room.id,
+            setViewerCount,
+            handleComment,
+            setLikeCount,
+            handleGift
+        );
 
         return () => {
             closeRoomConnection();
@@ -126,9 +201,9 @@ const LiveRoomPage = () => {
     return (
         <main>
             <h1>{room.title}</h1>
-            <p>UP：{room.anchorName}</p>
-            <p>Line：{viewerCount ?? '-'}</p>
-            <div style={{ position: 'relative', overflow: 'hidden' }}>
+            <p>UP: {room.anchorName}</p>
+            <p>Line: {viewerCount ?? '-'}</p>
+            <div className="live-player-stage">
                 <LivePlayer
                     type={room.sourceType}
                     url={room.playUrl}
@@ -137,27 +212,55 @@ const LiveRoomPage = () => {
                 />
                 <DanmakuLayer key={room.id} comments={comments} />
             </div>
+            <div className="room-nickname">
+                <label className="room-nickname-field">
+                    <span>Nickname</span>
+                    <input
+                        type="text"
+                        value={nickname}
+                        maxLength={20}
+                        placeholder="enter nickname"
+                        onChange={(event) => {
+                            setNickname(event.target.value);
+                        }}
+                    />
+                </label>
+                <span className="room-nickname-hint">For chat and gifts</span>
+            </div>
+            <GiftPanel
+                key={room.id}
+                roomId={room.id}
+                nickname={nickname}
+                connected={viewerCount !== null}
+            />
+
+            <section className="room-gift-list">
+                <h2>Gift list</h2>
+                <ul>
+                    {giftQueue.length === 0 ? (
+                        <li className="room-gift-empty">No gifts</li>
+                    ) : giftQueue.map((gift) => (
+                        <li key={gift.id}>
+                            {gift.giftIcon} {gift.nickname} sent {gift.giftName}
+                        </li>
+                    ))}
+                </ul>
+            </section>
+            <section>
+                <p>Likes: {likeCount ?? '-'}</p>
+                <button type='button' onClick={handleLike} disabled={likeCount === null}>
+                    like
+                </button>
+                {likeError && (
+                    <p role='alert'>{likeError}</p>
+                )}
+            </section>
             <section>
                 <h2>Commentz</h2>
 
                 <div>
                     <label>
-                        nickname：
-                        <input
-                            type="text"
-                            value={nickname}
-                            maxLength={20}
-                            placeholder="enter nickname"
-                            onChange={(event) => {
-                                setNickname(event.target.value);
-                            }}
-                        />
-                    </label>
-                </div>
-
-                <div>
-                    <label>
-                        comment：
+                        comment:
                         <input
                             type="text"
                             value={commentContent}
@@ -173,7 +276,7 @@ const LiveRoomPage = () => {
                         type="button"
                         onClick={handleSendComment}
                     >
-                        发送
+                        Send
                     </button>
                 </div>
 
@@ -186,7 +289,7 @@ const LiveRoomPage = () => {
                 <ul>
                     {comments.map((comment) => (
                         <li key={comment.id}>
-                            <span>{comment.nickname}：</span>
+                            <span>{comment.nickname}: </span>
                             <span>{comment.content}</span>
                         </li>
                     ))}

@@ -100,16 +100,13 @@ const HlsPlayer = (props: IProps) => {
     };
 
     return (
-        <div>
+        <div className="hls-player">
             <video 
                 ref={videoRef} 
                 autoPlay
                 muted
                 playsInline
-                style={{
-                    width: '100%',
-                    background: '#000000'
-                }}
+                className="live-player-video"
                 onPlaying={() => {
                     setStatus('playing');
                 }}
@@ -124,10 +121,10 @@ const HlsPlayer = (props: IProps) => {
                     }
                 }}
             />
-            <div>
-                {status === 'loading' && <p>直播加载中。。。</p>}
-                {status === 'buffering' && <p>正在缓冲。。。</p>}
-                {status === 'paused' && <p>播放已暂停</p>}
+            <div className="player-status">
+                {status === 'loading' && <p>Loading...</p>}
+                {status === 'buffering' && <p>Buffering...</p>}
+                {status === 'paused' && <p>Paused</p>}
                 {status === 'error' && error && <p>{error}</p>}
                 
             </div>
