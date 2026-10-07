@@ -6,6 +6,106 @@ type CommentHandler = (comment: RoomComment) => void;
 type LikeCountHandler = (likeCount: number | null) => void;
 type GiftHandler = (gift: RoomGift) => void;
 type SocketHandler = (socket: WebSocket) => void;
+type RoomHeartbeat = {
+    timer: number;
+    startedAt: number;
+    joined: boolean;
+    waitingForPong: boolean;
+    lastPingAt: number;
+    onViewerCount: ViewerCountHandle;
+    onLikeCount: LikeCountHandler;
+    onClose: SocketHandler;
+}
+const ROOM_JOIN_TIME = 15000;
+const HEARTBEAT_INTERVAL = 15000;
+const HEARTBEAT_TIMEOUT = 10000;
+
+const roomHeartbeats = new WeakMap<WebSocket, RoomHeartbeat>();
+
+
+const stopRoomHeartbeat = (socket: WebSocket) => {
+    const heartbeat = roomHeartbeats.get(socket);
+    if (!heartbeat) {
+        return;
+    }
+    window.clearInterval(heartbeat.timer);
+    roomHeartbeats.delete(socket);
+}
+
+const failRoomConnection = (socket: WebSocket, reason: string) => {
+    const heartbeat = roomHeartbeats.get(socket);
+    if (!heartbeat) {
+        return;
+    }
+    console.warn(reason);
+    disconnectFromRoom(socket);
+    heartbeat.onViewerCount(null);
+    heartbeat.onLikeCount(null);
+    heartbeat.onClose(socket);
+}
+
+const checkRoomConnection = (socket: WebSocket) => {
+    const heartbeat = roomHeartbeats.get(socket);
+    if (!heartbeat) {
+        return;
+    }
+    if (socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING) {
+        stopRoomHeartbeat(socket);
+        return;
+    }
+
+    const now = performance.now();
+
+    if (!heartbeat.joined) {
+        if (now - heartbeat.startedAt >= ROOM_JOIN_TIME) {
+            failRoomConnection(socket, 'room join timeout');
+        }
+        return;
+    }
+
+    if (heartbeat.waitingForPong) {
+        if (now - heartbeat.lastPingAt >= HEARTBEAT_TIMEOUT) {
+            failRoomConnection(socket, 'heartbeat timeout');
+        }
+        return;
+    }
+
+    if (now - heartbeat.lastPingAt < HEARTBEAT_INTERVAL) {
+        return;
+    }
+
+    heartbeat.lastPingAt = now;
+    heartbeat.waitingForPong = true;
+
+    try {
+        socket.send(JSON.stringify({ type: 'ping' }));
+    } catch (error) {
+        failRoomConnection(socket, 'heartbeat send failed');
+    }
+}
+
+const startRoomHeartbeat = (
+    socket: WebSocket,
+    onViewerCount: ViewerCountHandle,
+    onLikeCount: LikeCountHandler,
+    onClose: SocketHandler
+) => {
+    stopRoomHeartbeat(socket);
+
+    const startedAt = performance.now();
+    const timer = window.setInterval(checkRoomConnection, 1000, socket);
+
+    roomHeartbeats.set(socket, {
+        timer,
+        startedAt,
+        joined: false,
+        waitingForPong: false,
+        lastPingAt: startedAt,
+        onViewerCount,
+        onLikeCount,
+        onClose
+    });
+}
 
 export const connectToRoom = (
     roomId: string,
@@ -17,6 +117,8 @@ export const connectToRoom = (
     onclose: SocketHandler
 ): WebSocket => {
     const socket = new WebSocket(ROOM_WS_URL);
+    startRoomHeartbeat(socket, onViewerCount, onLikeCount, onclose);
+
     socket.onopen = () => {
         socket.send(JSON.stringify({
             type: 'join',
@@ -41,6 +143,14 @@ export const connectToRoom = (
             return;
         }
 
+        if (message.type === 'pong') {
+            const heartbeat = roomHeartbeats.get(socket);
+            if (heartbeat) {
+                heartbeat.waitingForPong = false;
+            }
+            return;
+        }
+
         if (message.type === 'error') {
             console.log('room server error:', message);
             return
@@ -51,6 +161,12 @@ export const connectToRoom = (
         }
 
         if (message.type === 'joined') {
+            const heartbeat = roomHeartbeats.get(socket);
+            if (heartbeat) {
+                heartbeat.joined = true;
+                heartbeat.waitingForPong = false;
+                heartbeat.lastPingAt = performance.now();
+            }
             onJoined(socket);
             return;
         }
@@ -132,6 +248,7 @@ export const connectToRoom = (
     }
 
     socket.onclose = () => {
+        stopRoomHeartbeat(socket);
         onViewerCount(null);
         onLikeCount(null);
         onclose(socket);
@@ -141,6 +258,7 @@ export const connectToRoom = (
 }
 
 export const disconnectFromRoom = (socket: WebSocket) => {
+    stopRoomHeartbeat(socket);
     socket.onopen = null;
     socket.onmessage = null;
     socket.onerror = null;

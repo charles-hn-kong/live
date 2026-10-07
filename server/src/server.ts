@@ -1,6 +1,6 @@
 import app from './app';
 import { createServer } from 'node:http';
-import { WebSocketServer } from 'ws';
+import WebSocket, { WebSocketServer } from 'ws';
 import { getRoomById } from './services/roomService';
 import { joinRoom, leaveRoom, sendRoomComment, sendRoomLike } from './services/roomSocketService';
 
@@ -8,12 +8,35 @@ const port = Number(process.env.PORT) || 3000;
 
 const server = createServer(app);
 
+const aliveSockets = new Set<WebSocket>();
+
 const wss = new WebSocketServer({
     server,
     path: '/ws'
 });
 
+const heartbeatTimer = setInterval(() => {
+    for (const socket of wss.clients) {
+        if (socket.readyState !== WebSocket.OPEN) {
+            continue;
+        }
+        if (!aliveSockets.has(socket)) {
+            socket.terminate();
+            continue;
+        }
+        aliveSockets.delete(socket);
+        socket.ping();
+    }
+}, 5000);
+
 wss.on('connection', (socket) => {
+
+    aliveSockets.add(socket);
+
+    socket.on('pong', () => {
+        aliveSockets.add(socket);
+    });
+
     console.log('webSocket client connected');
 
     socket.send(JSON.stringify({
@@ -39,6 +62,13 @@ wss.on('connection', (socket) => {
                 type: 'error',
                 message: 'Invalid message'
             }));
+            return;
+        }
+
+        if (message.type === 'ping') {
+            socket.send(JSON.stringify({
+                type: 'pong'
+            }))
             return;
         }
 
@@ -97,6 +127,7 @@ wss.on('connection', (socket) => {
     });
 
     socket.on('close', () => {
+        aliveSockets.delete(socket);
         leaveRoom(socket);
         console.log('Client disconnected');
     });
@@ -104,6 +135,11 @@ wss.on('connection', (socket) => {
     socket.on('error', (error) => {
         console.error('websocket error:', error);
     });
+});
+
+wss.on('close', () => {
+    clearInterval(heartbeatTimer);
+    aliveSockets.clear();
 });
 
 server.listen(port, () => {

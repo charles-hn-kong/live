@@ -326,7 +326,7 @@ const LiveRoomPage = () => {
                 )}
             </section>
             <section>
-                <h2>Commentz</h2>
+                <h2>Comment</h2>
 
                 <div>
                     <label>
